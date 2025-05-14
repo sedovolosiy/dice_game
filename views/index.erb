@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dice Game</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+    .container {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 600px;
+      margin: auto;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input[type="text"], input[type="number"], input[type="email"] {
+      width: calc(100% - 22px);
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    input[type="submit"] {
+      background-color: #5cb85c;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    input[type="submit"]:hover {
+      background-color: #4cae4c;
+    }
+    .result, .error, .verification, .message {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .result {
+      background-color: #dff0d8;
+      border: 1px solid #d6e9c6;
+      color: #3c763d;
+    }
+    .error {
+      background-color: #f2dede;
+      border: 1px solid #ebccd1;
+      color: #a94442;
+    }
+    .verification {
+      background-color: #d9edf7;
+      border: 1px solid #bce8f1;
+      color: #31708f;
+    }
+    .message {
+      background-color: #fcf8e3;
+      border: 1px solid #faebcc;
+      color: #8a6d3b;
+    }
+    fieldset {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 4px;
+    }
+    legend {
+      font-weight: bold;
+      padding: 0 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Dice Game</h1>
+
+    <p><strong>Current Server Seed Hash:</strong> <%= locals[:server_seed_hash] %></p>
+
+    <% if locals[:error] %>
+      <div class="error">
+        <p>Error: <%= locals[:error] %></p>
+      </div>
+    <% end %>
+
+    <% if locals[:message] %>
+      <div class="message">
+        <p><%= locals[:message] %></p>
+      </div>
+    <% end %>
+
+    <% unless locals[:email_verified] || (locals[:email] && !locals[:email].empty?) %>
+      <fieldset>
+        <legend>Step 1: Verify Email</legend>
+        <form action="/verify_email" method="post">
+          <label for="email">Enter your Email:</label>
+          <input type="email" id="email" name="email" required value="<%= locals[:email] %>">
+          <input type="submit" value="Register/Verify Email">
+        </form>
+      </fieldset>
+    <% else %>
+      <p><strong>Email:</strong> <%= locals[:email] %> <% if locals[:email_verified] %>(Registered) <% end %></p>
+      <fieldset>
+        <legend>Step 2: Play Game</legend>
+        <form action="/play" method="post">
+          <input type="hidden" name="email" value="<%= locals[:email] %>">
+
+          <label for="client_seed">Client Seed (optional, will be generated if empty):</label>
+          <input type="text" id="client_seed" name="client_seed" value="<%= locals[:client_seed] %>">
+
+          <label for="target_number">Target Number (Roll Under, 1-99):</label>
+          <input type="number" id="target_number" name="target_number" min="1" max="99" required value="<%= locals[:target_number] %>">
+
+          <label for="bet_amount">Bet Amount:</label>
+          <input type="number" id="bet_amount" name="bet_amount" step="0.01" min="0.01" required value="<%= locals[:bet_amount] %>">
+
+          <input type="submit" value="Play">
+        </form>
+      </fieldset>
+    <% end %>
+
+    <% if locals[:result] %>
+      <div class="result">
+        <h2>Game Result</h2>
+        <p><strong>You <%= locals[:result][:win] ? "Won!" : "Lost!" %></strong></p>
+        <p>Number Rolled: <%= locals[:result][:number] %></p>
+        <p>Target Number: <%= locals[:result][:target_number] %></p>
+        <p>Bet Amount: <%= '%.2f' % locals[:result][:bet_amount] %></p>
+        <% if locals[:result][:win] %>
+          <p>Payout: <%= '%.2f' % locals[:result][:payout] %></p>
+        <% end %>
+        <p>Server Seed (revealed): <%= locals[:result][:server_seed] %></p>
+        <p>Client Seed Used: <%= locals[:client_seed] %></p>
+        <p>Nonce Used: <%= locals[:result][:nonce] %></p>
+        <p>Played with Email: <%= locals[:email] %></p>
+
+        <%# Display dynamic house edge and payout multiplier %>
+        <p>House Edge: <%= (100 * game.calculate_dynamic_edge(result[:target_number])).round(2) %>%</p>
+        <p>Payout Multiplier: x<%= game.calculate_payout_multiplier(result[:target_number]).round(2) %></p>
+
+        <h2>Verify Last Game</h2>
+        <form action="/verify" method="post">
+          <input type="hidden" name="server_seed" value="<%= locals[:result][:server_seed] %>">
+          <input type="hidden" name="client_seed" value="<%= locals[:client_seed] %>">
+          <input type="hidden" name="target_number" value="<%= locals[:result][:target_number] %>">
+          <input type="hidden" name="bet_amount" value="<%= locals[:result][:bet_amount] %>">
+          <input type="hidden" name="nonce" value="<%= locals[:result][:nonce] %>">
+          <input type="hidden" name="expected_number" value="<%= locals[:result][:number] %>">
+          <input type="submit" value="Verify Last Game">
+        </form>
+      </div>
+    <% end %>
+
+    <% if !locals[:verification_result].nil? %>
+      <div class="verification">
+        <h2>Verification Result</h2>
+        <p>Game Verification: <strong><%= locals[:verification_result] ? "Valid" : "Invalid" %></strong></p>
+        <% if locals[:verified_params] %>
+          <p>Verified Parameters:</p>
+          <ul>
+            <li>Server Seed: <%= locals[:verified_params][:server_seed] %></li>
+            <li>Client Seed: <%= locals[:verified_params][:client_seed] %></li>
+            <li>Target Number: <%= locals[:verified_params][:target_number] %></li>
+            <li>Bet Amount: <%= '%.2f' % locals[:verified_params][:bet_amount] %></li>
+            <li>Nonce: <%= locals[:verified_params][:nonce] %></li>
+            <li>Expected Number: <%= locals[:verified_params][:expected_number] %></li>
+          </ul>
+        <% end %>
+      </div>
+    <% end %>
+
+  </div>
+</body>
+</html>
